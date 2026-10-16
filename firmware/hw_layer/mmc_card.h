@@ -35,6 +35,8 @@ enum class SdCardState : uint8_t {
 SdCardState getSdCardState();
 
 void onUsbConnectedNotifyMmcI();
+bool pollUsbHandOffRequested();
+bool handOffSdToUsbMassStorage();
 
 // Implemented in firmware by reading from engineConfiguration
 // Implemented in bootloader with defines (bootloader has no config!)

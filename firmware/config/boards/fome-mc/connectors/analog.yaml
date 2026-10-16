@@ -1,0 +1,56 @@
+pins:
+  - pin: J2-1
+    id: EFI_ADC_11
+    class: analog_inputs
+    function: Coolant Temperature (CLT / SV650 ECT on AT1 PC1)
+    ts_name: J2-1 CLT / ECT (2.7k Pullup)
+    type: Thermistor
+
+  - pin: J2-2
+    id: EFI_ADC_12
+    class: analog_inputs
+    function: Intake Air Temperature (IAT on AT2 PC2)
+    ts_name: J2-2 IAT (2.7k Pullup)
+    type: Thermistor
+
+  - pin: J2-3
+    id: EFI_ADC_1
+    class: analog_inputs
+    function: Primary Throttle Position Sensor (TPS1 on AV2 PA1)
+    ts_name: J2-3 TPS1 Primary
+    type: av
+
+  - pin: J2-4
+    id: EFI_ADC_3
+    class: analog_inputs
+    function: Secondary Throttle Position Sensor (TPS2 / SV650 STPS on AV4 PA3)
+    ts_name: J2-4 TPS2 / STPS Secondary
+    type: av
+
+  - pin: J2-5
+    id: EFI_ADC_0
+    class: analog_inputs
+    function: Front Cylinder Intake Air Pressure (MAP1 / CAM Phase Sync on AV1 PA0)
+    ts_name: J2-5 MAP1 Front IAP
+    type: av
+
+  - pin: J2-6
+    id: EFI_ADC_2
+    class: analog_inputs
+    function: Rear Cylinder Intake Air Pressure / Baro / Aux Pressure (MAP2 on AV3 PA2)
+    ts_name: J2-6 MAP2 Rear IAP / Aux
+    type: av
+
+  - pin: J2-7
+    id: EFI_ADC_4
+    class: analog_inputs
+    function: SV650 Tip-Over Sensor / Analog Input 5 (AV5 PA4)
+    ts_name: J2-7 AV5 Tip-Over Sensor
+    type: av
+
+  - pin: J2-8
+    id: EFI_ADC_5
+    class: analog_inputs
+    function: SV650 Gear Position Switch Ladder (AV6 PA5 w/ 1.5k Pullup to 5V)
+    ts_name: J2-8 AV6 Gear Position (1.5k Pullup)
+    type: av

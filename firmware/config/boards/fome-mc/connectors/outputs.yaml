@@ -1,0 +1,126 @@
+pins:
+  - pin: J1-1
+    id: G5
+    class: outputs
+    function: Injector 1 Low-Side (Front Cyl #1 Primary on PG5)
+    ts_name: J1-1 Injector 1 (Front)
+    type: inj
+
+  - pin: J1-2
+    id: G6
+    class: outputs
+    function: Injector 2 Low-Side (Rear Cyl #2 Primary on PG6)
+    ts_name: J1-2 Injector 2 (Rear)
+    type: inj
+
+  - pin: J1-3
+    id: G7
+    class: outputs
+    function: Injector 3 Low-Side (Secondary Front / Aux LS on PG7)
+    ts_name: J1-3 Injector 3 / Aux LS
+    type: inj
+
+  - pin: J1-4
+    id: G8
+    class: outputs
+    function: Injector 4 Low-Side (Secondary Rear / Aux LS on PG8)
+    ts_name: J1-4 Injector 4 / Aux LS
+    type: inj
+
+  - pin: J1-6
+    id: B3
+    class: outputs
+    function: Ignition 1 High-Current IGBT (Front Cyl #1 Primary Center Plug on PB3)
+    ts_name: J1-6 Ignition 1 IGBT (Front Primary)
+    type: ign
+
+  - pin: J1-7
+    id: G15
+    class: outputs
+    function: Ignition 2 High-Current IGBT (Rear Cyl #2 Primary Center Plug on PG15)
+    ts_name: J1-7 Ignition 2 IGBT (Rear Primary)
+    type: ign
+
+  - pin: J1-8
+    id: G14
+    class: outputs
+    function: Ignition 3 High-Current IGBT (Front Cyl #1 Trailing Side Plug on PG14)
+    ts_name: J1-8 Ignition 3 IGBT (Front Trailing)
+    type: ign
+
+  - pin: J1-9
+    id: G13
+    class: outputs
+    function: Ignition 4 High-Current IGBT (Rear Cyl #2 Trailing Side Plug on PG13)
+    ts_name: J1-9 Ignition 4 IGBT (Rear Trailing)
+    type: ign
+
+  - pin: J1-10
+    id: C6
+    class: outputs
+    function: Auxiliary Low-Side 1 (Fuel Pump Relay on PC6)
+    ts_name: J1-10 Aux LS1 Fuel Pump Relay
+    type: ls
+
+  - pin: J1-11
+    id: C7
+    class: outputs
+    function: Auxiliary Low-Side 2 (Cooling Fan Relay on PC7)
+    ts_name: J1-11 Aux LS2 Cooling Fan Relay
+    type: ls
+
+  - pin: J1-12
+    id: A15
+    class: outputs
+    function: Auxiliary Low-Side 3 (PAIR Solenoid / Shift Light on PA15)
+    ts_name: J1-12 Aux LS3 PAIR / Shift Light
+    type: ls
+
+  - pin: J1-13
+    id: D3
+    class: outputs
+    function: Auxiliary Low-Side 4 (Tachometer Output with 2.2k 12V Pullup on PD3)
+    ts_name: J1-13 Aux LS4 Tachometer Out
+    type: ls
+
+  - pin: J1-14
+    id: G4
+    class: outputs
+    function: High-Side Output 1 (5V/12V Configurable High-Side on PG4)
+    ts_name: J1-14 High-Side 1
+    type: hs
+
+  - pin: J2-23
+    id: G12
+    class: outputs
+    function: Ignition 1 Logic 5V Push-Pull (Smart Coil 1 on PG12)
+    ts_name: J2-23 Ignition 1 Logic (5V)
+    type: ign_logic
+
+  - pin: J2-24
+    id: G11
+    class: outputs
+    function: Ignition 2 Logic 5V Push-Pull (Smart Coil 2 on PG11)
+    ts_name: J2-24 Ignition 2 Logic (5V)
+    type: ign_logic
+
+  - pin: J2-25
+    id: G10
+    class: outputs
+    function: Ignition 3 Logic 5V Push-Pull (Smart Coil 3 on PG10)
+    ts_name: J2-25 Ignition 3 Logic (5V)
+    type: ign_logic
+
+  - pin: J2-26
+    id: G9
+    class: outputs
+    function: Ignition 4 Logic 5V Push-Pull (Smart Coil 4 on PG9)
+    ts_name: J2-26 Ignition 4 Logic (5V)
+    type: ign_logic
+
+  - pin: J2-27
+    id: B9
+    class: outputs
+    function: SV650 Dash Single-Wire Serial (7800 baud Open-Collector w/ 12V Pullup on PB9)
+    ts_name: J2-27 SV650 Dash Serial (TECH)
+    type: ls

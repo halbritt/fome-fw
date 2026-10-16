@@ -269,6 +269,22 @@ SdLogBufferWriter& logBuffer() {
 
 #endif // EFI_PROD_CODE
 
+#if EFI_PROD_CODE
+static bool tryHandOffActiveLogToUsb() {
+	if (!pollUsbHandOffRequested()) {
+		return false;
+	}
+
+	// 1. Flush buffered bytes and sync/close active FatFs file
+	dma_buffers::logBuffer().flush();
+	f_sync(dma_buffers::logFileFd());
+	f_close(dma_buffers::logFileFd());
+
+	// 2. Unmount FatFs and transfer block device ownership to USB Mass Storage LUN 1
+	return handOffSdToUsbMassStorage();
+}
+#endif // EFI_PROD_CODE
+
 // Log 'regular' ECU log to MLG file
 void mlgLogger() {
 	while (true) {
@@ -276,6 +292,12 @@ void mlgLogger() {
 		// Don't do this check at all if using SDMMC interface instead of SPI
 #if EFI_PROD_CODE && !defined(EFI_SDC_DEVICE)
 		if (engineConfiguration->sdCardSpiDevice == SPI_NONE) {
+			return;
+		}
+#endif
+
+#if EFI_PROD_CODE
+		if (tryHandOffActiveLogToUsb()) {
 			return;
 		}
 #endif
@@ -300,6 +322,11 @@ static void sdTriggerLogger() {
 	EnableToothLogger();
 
 	while (true) {
+#if EFI_PROD_CODE
+		if (tryHandOffActiveLogToUsb()) {
+			return;
+		}
+#endif
 		auto buffer = GetToothLoggerBufferBlocking();
 
 		if (buffer) {

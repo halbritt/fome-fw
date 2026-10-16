@@ -1,0 +1,8 @@
+pins:
+  - pin: J2-28
+    function: External CAN1 High (500 kbps Dash / OBD / OpenBLT)
+    type: can
+
+  - pin: J2-29
+    function: External CAN1 Low (500 kbps Dash / OBD / OpenBLT)
+    type: can

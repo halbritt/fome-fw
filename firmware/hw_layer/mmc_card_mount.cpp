@@ -10,6 +10,7 @@
 #include "mass_storage_init.h"
 
 static SdCardState sdCardState = SdCardState::Initializing;
+static BaseBlockDevice* mountedCardBlockDevice = nullptr;
 
 SdCardState getSdCardState() {
 	return sdCardState;
@@ -17,14 +18,57 @@ SdCardState getSdCardState() {
 
 #if HAL_USE_USB_MSD
 static chibios_rt::BinarySemaphore usbConnectedSemaphore(/* taken =*/true);
+static volatile bool usbConfiguredFlag = false;
 
 void onUsbConnectedNotifyMmcI() {
+	usbConfiguredFlag = true;
 	usbConnectedSemaphore.signalI();
+}
+
+bool pollUsbHandOffRequested() {
+	// Only permit handoff from internal FatFs logging to USB Mass Storage when USB is
+	// configured AND the engine is completely stopped (RPM == 0).
+	if (!usbConfiguredFlag) {
+		return false;
+	}
+	return engine->rpmCalculator.isStopped();
+}
+#else
+bool pollUsbHandOffRequested() {
+	return false;
 }
 #endif /* HAL_USE_USB_MSD */
 
+bool handOffSdToUsbMassStorage() {
+#if HAL_USE_USB_MSD
+	if (sdCardState != SdCardState::Mounted || !mountedCardBlockDevice) {
+		return false;
+	}
+	if (!engine->rpmCalculator.isStopped()) {
+		return false;
+	}
+
+	// 1. Unregister FatFs work area and detach drive before exposing block device to USB host
+	f_mount(nullptr, nullptr, 0);
+	fatfsAttachDrive(FATFS_DRIVE_SD, nullptr);
+
+#if EFI_TUNER_STUDIO
+	engine->outputChannels.sd_logging_internal = false;
+#endif
+
+	// 2. Transfer exclusive block device ownership to USB Mass Storage LUN 1
+	attachMsdSdCard(mountedCardBlockDevice);
+	sdCardState = SdCardState::UsbMassStorage;
+	efiPrintf("SD: engine stopped and USB connected; unmounted FatFs and handed card to USB Mass Storage");
+	return true;
+#else
+	return false;
+#endif
+}
+
 bool mountSdFilesystem() {
 	auto cardBlockDevice = initializeMmcBlockDevice();
+	mountedCardBlockDevice = cardBlockDevice;
 
 #if EFI_TUNER_STUDIO
 	// If not null, card is present
@@ -42,12 +86,12 @@ bool mountSdFilesystem() {
 	// Wait for the USB stack to wake up, or a 5 second timeout, whichever occurs first
 	msg_t usbResult = usbConnectedSemaphore.wait(TIME_MS2I(5000));
 
-	bool hasUsb = usbResult == MSG_OK;
+	bool hasUsb = (usbResult == MSG_OK) || usbConfiguredFlag;
 
-	// If we have a device AND USB is connected, mount the card to USB, otherwise
-	// mount the null device and try to mount the filesystem ourselves
-	if (cardBlockDevice && hasUsb) {
-		efiPrintf("SD: USB connected, card handed to mass storage instead of internal logging");
+	// If we have a device AND USB is connected AND the engine is stopped, mount the card to USB.
+	// If the engine is cranking or running, keep internal logging active and defer USB MSD handoff.
+	if (cardBlockDevice && hasUsb && engine->rpmCalculator.isStopped()) {
+		efiPrintf("SD: USB connected with engine stopped, card handed to mass storage instead of internal logging");
 
 		// Mount the real card to USB
 		attachMsdSdCard(cardBlockDevice);
@@ -87,6 +131,7 @@ void unmountSdFilesystem() {
 	fatfsAttachDrive(FATFS_DRIVE_SD, nullptr);
 
 	stopMmcBlockDevice();
+	mountedCardBlockDevice = nullptr;
 
 	efiPrintf("MMC/SD card removed");
 }

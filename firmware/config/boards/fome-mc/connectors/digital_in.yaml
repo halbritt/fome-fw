@@ -1,0 +1,42 @@
+pins:
+  - pin: J2-11
+    id: [E14, E14]
+    class: [event_inputs, switch_inputs]
+    function: Crankshaft VR1+ Conditioner Input (MAX9924 #1 -> PE14)
+    ts_name: J2-11 VR1 Crank Sensor
+    type: vr
+
+  - pin: J2-13
+    id: [E15, E15]
+    class: [event_inputs, switch_inputs]
+    function: Camshaft VR2+ Conditioner Input (MAX9924 #2 -> PE15)
+    ts_name: J2-13 VR2 Cam Sensor
+    type: vr
+
+  - pin: J2-15
+    id: [G1, G1]
+    class: [event_inputs, switch_inputs]
+    function: Hall Input 1 / Cam / Trigger (DIGITAL2 PG1)
+    ts_name: J2-15 Hall 1 / Cam
+    type: hall
+
+  - pin: J2-16
+    id: [G0, G0]
+    class: [event_inputs, switch_inputs]
+    function: Hall Input 2 / Vehicle Speed Sensor VSS (DIGITAL1 PG0)
+    ts_name: J2-16 Hall 2 / VSS Speed
+    type: hall
+
+  - pin: J2-17
+    id: E11
+    class: switch_inputs
+    function: Digital Input 1 / Clutch Switch (DIGITAL4 PE11)
+    ts_name: J2-17 Clutch Switch
+    type: din
+
+  - pin: J2-18
+    id: E10
+    class: switch_inputs
+    function: Digital Input 2 / Sidestand & Neutral Interlock (DIGITAL3 PE10)
+    ts_name: J2-18 Neutral / Sidestand Switch
+    type: din

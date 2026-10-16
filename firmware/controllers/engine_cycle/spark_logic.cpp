@@ -188,6 +188,11 @@ void fireSparkAndPrepareNextSchedule(IgnitionContext ctx) {
 	floatms_t sparkDwell = engine->ignitionState.getDwell();
 	if (std::isnan(dwellAngleDuration) || std::isnan(sparkDwell)) {
 		// we are here if engine has just stopped
+		if (engineConfiguration->enableTrailingSparks) {
+			engine->scheduler.cancel(&event.trailingSparkCharge);
+			engine->scheduler.cancel(&event.trailingSparkFire);
+			enginePins.trailingCoils[event.cylinderNumber].setLow();
+		}
 		return;
 	}
 
@@ -203,13 +208,20 @@ void fireSparkAndPrepareNextSchedule(IgnitionContext ctx) {
 		engine->scheduler.schedule(
 				"firing", &event.sparkEvent.scheduling, nextFiring, {fireSparkAndPrepareNextSchedule, ctx});
 	} else {
-		if (engineConfiguration->enableTrailingSparks && !ctx.isOverdwellProtect) {
-			// Trailing sparks are enabled - schedule an event for the corresponding trailing coil
-			scheduleByAngle(
-					&event.trailingSparkFire,
-					nowNt,
-					engine->engineState.trailingSparkAngle,
-					{&fireTrailingSpark, &enginePins.trailingCoils[event.cylinderNumber]});
+		if (engineConfiguration->enableTrailingSparks) {
+			if (ctx.isOverdwellProtect) {
+				// Primary coil overdwelled (e.g. stall before tooth); cancel pending trailing charge/fire and de-energize
+				engine->scheduler.cancel(&event.trailingSparkCharge);
+				engine->scheduler.cancel(&event.trailingSparkFire);
+				enginePins.trailingCoils[event.cylinderNumber].setLow();
+			} else {
+				// Trailing sparks are enabled - schedule an event for the corresponding trailing coil
+				scheduleByAngle(
+						&event.trailingSparkFire,
+						nowNt,
+						engine->engineState.trailingSparkAngle,
+						{&fireTrailingSpark, &enginePins.trailingCoils[event.cylinderNumber]});
+			}
 		}
 
 		// If all events have been scheduled, prepare for next time.

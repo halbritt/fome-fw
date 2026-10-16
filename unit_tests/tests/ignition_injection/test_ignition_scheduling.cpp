@@ -194,3 +194,76 @@ TEST(ignition, oddCylinderWastedSpark) {
 	// expect to schedule second events, the out-of-phase dwell and spark (the wasted spark copy)
 	onTriggerEventSparkLogic({nowNt2, 360 + 10, 360 + 30, 360 + 10, 360 + 30});
 }
+
+TEST(ignition, trailingSparkTwoCylinderOddFireSV650) {
+	EngineTestHelper eth(engine_type_e::TEST_ENGINE);
+	engineConfiguration->isFasterEngineSpinUpEnabled = false;
+
+	EXPECT_CALL(*eth.mockAirmass, getAirmass(_, _)).WillRepeatedly(Return(AirmassResult{0.1008f, 50.0f}));
+
+	setupSimpleTestEngineWithMafAndTT_ONE_trigger(&eth);
+	setCylinderCount(2);
+	engineConfiguration->firingOrder = FO_1_2;
+	engineConfiguration->ignitionMode = IM_INDIVIDUAL_COILS;
+	// 2007 Suzuki SV650 90-degree V-twin odd-fire offset (270 / 450 deg)
+	engineConfiguration->timing_offset_cylinder[0] = 0;
+	engineConfiguration->timing_offset_cylinder[1] = -90;
+	engineConfiguration->isInjectionEnabled = false;
+	engineConfiguration->isIgnitionEnabled = true;
+	engineConfiguration->enableTrailingSparks = true;
+	engine->engineState.trailingSparkAngle = 10;
+
+	setWholeTimingTable(0);
+	eth.setTriggerType(trigger_type_e::TT_ONE);
+
+	// Verify base + odd-fire spark angles for Cylinder 1 (0 deg) and Cylinder 2 (360 - 90 = 270 deg)
+	eth.fireTriggerEventsWithDuration(20);
+	eth.fireTriggerEventsWithDuration(20);
+	ASSERT_EQ(3000, Sensor::getOrZero(SensorType::Rpm));
+
+	EXPECT_EQ(engine->ignitionEvents.elements[0].cylinderNumber, 0);
+	EXPECT_EQ(engine->ignitionEvents.elements[1].cylinderNumber, 1);
+	EXPECT_FLOAT_EQ(engine->ignitionEvents.elements[0].calculateSparkAngle(), 0.0f);
+	EXPECT_FLOAT_EQ(engine->ignitionEvents.elements[1].calculateSparkAngle(), 270.0f);
+
+	// Verify primary output masks map independently to coil 0 and coil 1
+	EXPECT_EQ(engine->ignitionEvents.elements[0].calculateIgnitionOutputMask(), (1 << 0));
+	EXPECT_EQ(engine->ignitionEvents.elements[1].calculateIgnitionOutputMask(), (1 << 1));
+}
+
+TEST(ignition, trailingSparkOverdwellProtection) {
+	EngineTestHelper eth(engine_type_e::TEST_ENGINE);
+	setCylinderCount(2);
+	engineConfiguration->firingOrder = FO_1_2;
+	engineConfiguration->ignitionMode = IM_INDIVIDUAL_COILS;
+	engineConfiguration->enableTrailingSparks = true;
+	engine->engineState.trailingSparkAngle = 10;
+	engine->rpmCalculator.oneDegreeUs = 100;
+	engine->ignitionState.sparkDwell = 3.0f;
+	engine->ignitionState.dwellAngle = 30.0f;
+
+	initializeIgnitionActions();
+
+	IgnitionContext ctx{};
+	ctx.outputsMask = 1 << 0;
+	ctx.eventIndex = 0;
+	ctx.isOverdwellProtect = false;
+
+	// Start primary dwell on cylinder 1; this also schedules trailingSparkCharge
+	turnSparkPinHigh(ctx);
+	EXPECT_TRUE(enginePins.coils[0].getLogicValue());
+
+	// Advance time past trailingSparkAngle so trailing coil is also energized (HIGH)
+	eth.moveTimeForwardUs(1500);
+	eth.executeActions();
+	EXPECT_TRUE(enginePins.trailingCoils[0].getLogicValue());
+
+	// Now simulate overdwell protection callback firing (e.g. engine stalled before spark tooth)
+	ctx.isOverdwellProtect = true;
+	fireSparkAndPrepareNextSchedule(ctx);
+
+	// Both primary coil and trailing coil must be de-energized immediately
+	EXPECT_FALSE(enginePins.coils[0].getLogicValue());
+	EXPECT_FALSE(enginePins.trailingCoils[0].getLogicValue());
+}
+
