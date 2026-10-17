@@ -31,6 +31,7 @@ static int totalSyncCounter = 0;
 #include "ff.h"
 #include "mass_storage_init.h"
 #include "rtc_helper.h"
+#include "sd_log_ring_buffer.h"
 #include <charconv>
 
 // 10 because we want at least 4 character name
@@ -53,6 +54,162 @@ static Timer syncTimer;
 // print FAT error function
 static void printFatFsError(const char* str, FRESULT err) {
 	efiPrintf("FatFs Error \"%s\" %d", str, err);
+}
+
+// Shared directory/fileinfo objects to avoid stack pressure on sdCardLoggerStack
+static DIR pruneDir;
+static FILINFO pruneFno;
+
+static bool findOldestSubdir(const char* parentPath, size_t expectedDigits, char* outName, size_t outNameSize) {
+	if (f_opendir(&pruneDir, parentPath) != FR_OK) {
+		return false;
+	}
+
+	bool found = false;
+	outName[0] = '\0';
+
+	while (f_readdir(&pruneDir, &pruneFno) == FR_OK && pruneFno.fname[0] != 0) {
+		if (!(pruneFno.fattrib & AM_DIR)) {
+			continue;
+		}
+		if (!sd_log_ring_buffer::isDateFolderName(pruneFno.fname, expectedDigits)) {
+			continue;
+		}
+		if (!found || strcmp(pruneFno.fname, outName) < 0) {
+			strncpy(outName, pruneFno.fname, outNameSize - 1);
+			outName[outNameSize - 1] = '\0';
+			found = true;
+		}
+	}
+
+	f_closedir(&pruneDir);
+	return found;
+}
+
+static bool findOldestLogInDir(const char* dirPath, const char* activeLogPath, char* outFullPath, size_t outPathSize) {
+	if (f_opendir(&pruneDir, dirPath) != FR_OK) {
+		return false;
+	}
+
+	bool found = false;
+	uint64_t bestKey = UINT64_MAX;
+	outFullPath[0] = '\0';
+
+	while (f_readdir(&pruneDir, &pruneFno) == FR_OK && pruneFno.fname[0] != 0) {
+		if (pruneFno.fattrib & AM_DIR) {
+			continue;
+		}
+		uint64_t key = 0;
+		if (!sd_log_ring_buffer::parseFomeLogFileSortKey(pruneFno.fname, &key)) {
+			continue;
+		}
+
+		char candidatePath[MAX_LOG_PATH_LEN];
+		if (strcmp(dirPath, "/") == 0 || dirPath[0] == '\0') {
+			snprintf(candidatePath, sizeof(candidatePath), "%s", pruneFno.fname);
+		} else {
+			snprintf(candidatePath, sizeof(candidatePath), "%s/%s", dirPath, pruneFno.fname);
+		}
+
+		if (sd_log_ring_buffer::isSameLogPath(candidatePath, activeLogPath)) {
+			continue;
+		}
+
+		if (!found || key < bestKey) {
+			bestKey = key;
+			strncpy(outFullPath, candidatePath, outPathSize - 1);
+			outFullPath[outPathSize - 1] = '\0';
+			found = true;
+		}
+	}
+
+	f_closedir(&pruneDir);
+	return found;
+}
+
+static bool deleteOldestLogFile(const char* activeLogPath) {
+	char victimPath[MAX_LOG_PATH_LEN];
+
+	// 1. Prefer pruning sequential / root log files first
+	if (findOldestLogInDir("/", activeLogPath, victimPath, sizeof(victimPath))) {
+		FRESULT res = f_unlink(victimPath);
+		if (res == FR_OK) {
+			efiPrintf("SD ring-buffer: pruned oldest root log %s", victimPath);
+			return true;
+		}
+		printFatFsError("f_unlink root log failed", res);
+		return false;
+	}
+
+	// 2. Walk 20YY/MM/DD date hierarchy for RTC-timestamped logs
+	char yearDir[8];
+	if (!findOldestSubdir("/", 4, yearDir, sizeof(yearDir))) {
+		return false;
+	}
+
+	char monthDir[8];
+	if (!findOldestSubdir(yearDir, 2, monthDir, sizeof(monthDir))) {
+		f_unlink(yearDir);
+		return false;
+	}
+
+	char yearMonthPath[16];
+	snprintf(yearMonthPath, sizeof(yearMonthPath), "%s/%s", yearDir, monthDir);
+
+	char dayDir[8];
+	if (!findOldestSubdir(yearMonthPath, 2, dayDir, sizeof(dayDir))) {
+		f_unlink(yearMonthPath);
+		f_unlink(yearDir);
+		return false;
+	}
+
+	char dayPath[24];
+	snprintf(dayPath, sizeof(dayPath), "%s/%s", yearMonthPath, dayDir);
+
+	if (!findOldestLogInDir(dayPath, activeLogPath, victimPath, sizeof(victimPath))) {
+		// Day directory has no eligible logs left; remove empty date directories so next pass advances
+		f_unlink(dayPath);
+		f_unlink(yearMonthPath);
+		f_unlink(yearDir);
+		return false;
+	}
+
+	FRESULT res = f_unlink(victimPath);
+	if (res == FR_OK) {
+		efiPrintf("SD ring-buffer: pruned oldest log %s", victimPath);
+		// Attempt best-effort cleanup of parent date directories if they are now empty
+		f_unlink(dayPath);
+		f_unlink(yearMonthPath);
+		f_unlink(yearDir);
+		return true;
+	}
+
+	printFatFsError("f_unlink date log failed", res);
+	return false;
+}
+
+static void ensureSdFreeSpace(const char* activeLogPath) {
+	for (int iter = 0; iter < sd_log_ring_buffer::SD_MAX_PRUNE_FILES_PER_PASS; iter++) {
+		DWORD freeClusters = 0;
+		FATFS* fsPtr = nullptr;
+		if (f_getfree("/", &freeClusters, &fsPtr) != FR_OK || !fsPtr) {
+			return;
+		}
+
+		uint64_t bytesPerCluster = static_cast<uint64_t>(fsPtr->csize) * 512ULL;
+		uint64_t freeBytes = static_cast<uint64_t>(freeClusters) * bytesPerCluster;
+		uint64_t totalClusters = (fsPtr->n_fatent > 2) ? static_cast<uint64_t>(fsPtr->n_fatent - 2) : 0ULL;
+		uint64_t totalBytes = totalClusters * bytesPerCluster;
+		uint64_t targetFreeBytes = sd_log_ring_buffer::computeTargetFreeBytes(totalBytes);
+
+		if (freeBytes >= targetFreeBytes) {
+			return;
+		}
+
+		if (!deleteOldestLogFile(activeLogPath)) {
+			return;
+		}
+	}
 }
 
 static int incLogFileName() {
@@ -161,6 +318,9 @@ static void prepareLogFileName(int index) {
  * so that we can later append to that file
  */
 static bool createLogFile(int logFileIndex) {
+	// Prune oldest .mlg/.teeth log files if free space is below target threshold
+	ensureSdFreeSpace(nullptr);
+
 	prepareLogFileName(logFileIndex);
 
 	if (strchr(logName, '/') != nullptr) {
@@ -190,11 +350,33 @@ static bool createLogFile(int logFileIndex) {
 }
 
 size_t SdLogBufferWriter::writeInternal(const char* buffer, size_t count) {
-	size_t bytesWritten;
+	size_t bytesWritten = 0;
 
 	totalLoggedBytes += count;
 
 	FRESULT err = f_write(dma_buffers::logFileFd(), buffer, count, &bytesWritten);
+
+	// If FatFs reports partial write due to disk full (err == FR_OK && bytesWritten < count),
+	// prune the oldest closed log files and retry writing the remaining bytes before giving up.
+	if (err == FR_OK && bytesWritten < count) {
+		bool prunedAny = false;
+		for (int i = 0; i < 4; i++) {
+			if (deleteOldestLogFile(logName)) {
+				prunedAny = true;
+			} else {
+				break;
+			}
+		}
+		if (prunedAny) {
+			size_t retryWritten = 0;
+			err = f_write(
+					dma_buffers::logFileFd(),
+					buffer + bytesWritten,
+					count - bytesWritten,
+					&retryWritten);
+			bytesWritten += retryWritten;
+		}
+	}
 
 	if (bytesWritten != count) {
 		// This is terminal: the logger thread exits right after this and never retries, so print
