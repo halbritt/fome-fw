@@ -54,6 +54,22 @@ Gpio getWarningLedPin() {
 	return Gpio::F1;
 }
 
+spi_device_e getWifiSpiDevice() {
+	return SPI_DEVICE_4;
+}
+
+Gpio getWifiCsPin() {
+	return Gpio::E4;
+}
+
+Gpio getWifiResetPin() {
+	return Gpio::C13;
+}
+
+Gpio getWifiIsrPin() {
+	return Gpio::E3;
+}
+
 static void setupVbatt() {
 	// 5.6k high side / 10k low side = 1.56 ratio divider on MCP6004 buffered analog inputs
 	engineConfiguration->analogInputDividerCoefficient = 1.56f;
@@ -125,8 +141,13 @@ void setBoardConfigOverrides() {
 	engineConfiguration->lps25BaroSensorScl = Gpio::Unassigned;
 	engineConfiguration->lps25BaroSensorSda = Gpio::Unassigned;
 
-	// fome-mc does not use SPI4 WiFi; PE2..PE5 control WBO1/2 NRST & BOOT0 recovery lines
-	engineConfiguration->is_enabled_spi_4 = false;
+	// Onboard ATWINC1500-MR210UB (U.FL) Wi-Fi module (U29) on SPI4:
+	// SCK=PE2, MISO=PE5, MOSI=PE6, CS=PE4, IRQ=PE3, RESET_N=PC13.
+	// Serve TCP port 29000 (TunerStudio wireless tuning) and HTTP port 80 (SD log & .zip archive downloads).
+	engineConfiguration->is_enabled_spi_4 = true;
+	engineConfiguration->spi4sckPin = Gpio::E2;
+	engineConfiguration->spi4misoPin = Gpio::E5;
+	engineConfiguration->spi4mosiPin = Gpio::E6;
 
 	// Clear SPI3 SD card pins so PC10..PC12 remain dedicated to 4-bit SDMMC1 SDNAND
 	if (engineConfiguration->sdCardSpiDevice || isBrainPinValid(engineConfiguration->sdCardCsPin)) {
@@ -142,16 +163,17 @@ void setBoardConfigOverrides() {
 }
 
 #if EFI_BOOTLOADER
+// Return the SPI4 pins for the onboard ATWINC1500-MR210UB Wi-Fi device
 brain_pin_e getMisoPin(spi_device_e) {
-	return Gpio::Unassigned;
+	return Gpio::E5;
 }
 
 brain_pin_e getMosiPin(spi_device_e) {
-	return Gpio::Unassigned;
+	return Gpio::E6;
 }
 
 brain_pin_e getSckPin(spi_device_e) {
-	return Gpio::Unassigned;
+	return Gpio::E2;
 }
 #endif // EFI_BOOTLOADER
 
@@ -215,7 +237,7 @@ void setBoardDefaultConfiguration() {
 }
 
 void preHalInit() {
-	// 4-bit SDMMC1 for soldered LGA-8 SLC SDNAND (MKDV1GIL-AS / MKDV4GIL-AST)
+	// 4-bit SDMMC1 for soldered LGA-8 32Gbit (4GB) SDNAND (CSNP32GCR01-AOW C2841139)
 	efiSetPadMode("SDMMC", Gpio::C8, PAL_MODE_ALTERNATE(12) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
 	efiSetPadMode("SDMMC", Gpio::C9, PAL_MODE_ALTERNATE(12) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
 	efiSetPadMode("SDMMC", Gpio::C10, PAL_MODE_ALTERNATE(12) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
@@ -223,15 +245,15 @@ void preHalInit() {
 	efiSetPadMode("SDMMC", Gpio::C12, PAL_MODE_ALTERNATE(12) | PAL_STM32_OSPEED_MID2);
 	efiSetPadMode("SDMMC", Gpio::D2, PAL_MODE_ALTERNATE(12) | PAL_STM32_OSPEED_MID2 | PAL_STM32_PUPDR_PULLUP);
 
-	// De-assert WBO1/WBO2 BOOT0 lines (PE3, PE5 LOW) and release WBO1/WBO2 NRST lines (PE2, PE4 Open-Drain HIGH)
-	efiSetPadMode("WBO1_BOOT0", Gpio::E3, PAL_MODE_OUTPUT_PUSHPULL);
-	 palClearPad(GPIOE, 3);
-	efiSetPadMode("WBO2_BOOT0", Gpio::E5, PAL_MODE_OUTPUT_PUSHPULL);
-	palClearPad(GPIOE, 5);
-	efiSetPadMode("WBO1_NRST", Gpio::E2, PAL_MODE_OUTPUT_OPENDRAIN | PAL_STM32_PUPDR_PULLUP);
-	palSetPad(GPIOE, 2);
-	efiSetPadMode("WBO2_NRST", Gpio::E4, PAL_MODE_OUTPUT_OPENDRAIN | PAL_STM32_PUPDR_PULLUP);
-	palSetPad(GPIOE, 4);
+	// De-assert WBO1/WBO2 BOOT0 lines (PD5, PD7 LOW) and release WBO1/WBO2 NRST lines (PD4, PD6 Open-Drain HIGH)
+	efiSetPadMode("WBO1_NRST", Gpio::D4, PAL_MODE_OUTPUT_OPENDRAIN | PAL_STM32_PUPDR_PULLUP);
+	palSetPad(GPIOD, 4);
+	efiSetPadMode("WBO1_BOOT0", Gpio::D5, PAL_MODE_OUTPUT_PUSHPULL);
+	palClearPad(GPIOD, 5);
+	efiSetPadMode("WBO2_NRST", Gpio::D6, PAL_MODE_OUTPUT_OPENDRAIN | PAL_STM32_PUPDR_PULLUP);
+	palSetPad(GPIOD, 6);
+	efiSetPadMode("WBO2_BOOT0", Gpio::D7, PAL_MODE_OUTPUT_PUSHPULL);
+	palClearPad(GPIOD, 7);
 }
 
 #ifndef EFI_BOOTLOADER
