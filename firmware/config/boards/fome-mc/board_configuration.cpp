@@ -221,10 +221,17 @@ void setBoardDefaultConfiguration() {
 	engineConfiguration->clutchDownPin = Gpio::E11;             // DIG4: Clutch Switch (Pin 7)
 
 	// Dual Onboard STM32F042K6T6 Wideband Controllers on CAN2 (Bus 1)
+	// + External Motorsport Telemetry Pod & RaceChrono Pro on CAN1 (Bus 0, J2-28/29 @ 500 kbps)
 	engineConfiguration->widebandMode = WidebandMode::FOMEInternal;
 	engineConfiguration->canWriteEnabled = true;
 	engineConfiguration->canReadEnabled = true;
+	engineConfiguration->canBaudRate = B500KBPS;
 	engineConfiguration->can2BaudRate = B500KBPS;
+	engineConfiguration->enableVerboseCanTx = true;
+	engineConfiguration->canBroadcastUseChannelTwo = canBroadcast_e::first; // Broadcast 0x200..0x207 on CAN1 (J2-28/29)
+	engineConfiguration->verboseCanBaseAddress = CAN_DEFAULT_BASE;          // 0x200 (512) per FOME_CAN_verbose.dbc
+	engineConfiguration->canSleepPeriodMs = 20;                             // 50 Hz CAN1 broadcast for RaceChrono Pro
+	engineConfiguration->imuType = IMU_MM5_10;                              // Ingest 6-axis IMU (0x174, 0x178, 0x17C) from CAN1 telemetry pod
 #ifndef EFI_BOOTLOADER
 	config->lambdaSensorSourceBus[0] = 1;   // CAN2 (Bus 1)
 	config->lambdaSensorSourceIndex[0] = 0; // WBO1 Front (0x190/0x191, SEL1=GND, SEL2=Float)
