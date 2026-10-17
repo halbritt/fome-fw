@@ -37,8 +37,8 @@ pins:
   - pin: J2-6
     id: EFI_ADC_2
     class: analog_inputs
-    function: Rear Cylinder Intake Air Pressure / Baro / Aux Pressure (MAP2 on AV3 PA2)
-    ts_name: J2-6 MAP2 Rear IAP / Aux
+    function: External 1-Bar Barometric Sensor (GM 12614970 / Delphi PS10150 on AV3 PA2) / Aux Pressure
+    ts_name: J2-6 Baro (GM 1-Bar) / Aux
     type: av
 
   - pin: J2-7

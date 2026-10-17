@@ -119,9 +119,11 @@ void setBoardConfigOverrides() {
 	engineConfiguration->can2RxPin = Gpio::B12;
 	engineConfiguration->can2TxPin = Gpio::B13;
 
-	// Onboard LPS25HBTR baro sensor on I2C2 (PB10/PB11)
-	engineConfiguration->lps25BaroSensorScl = Gpio::B10;
-	engineConfiguration->lps25BaroSensorSda = Gpio::B11;
+	// Default to external 1-bar barometric sensor on J2-6 (PA2 / EFI_ADC_2) so the enclosure can be
+	// flood-potted in a single pour without a barometer chimney dam or ePTFE lid vent.
+	// Onboard LPS25HBTR (U24 on I2C2 PB10/PB11) is DNP on potted builds; can be enabled in TunerStudio for unpotted bench boards.
+	engineConfiguration->lps25BaroSensorScl = Gpio::Unassigned;
+	engineConfiguration->lps25BaroSensorSda = Gpio::Unassigned;
 
 	// fome-mc does not use SPI4 WiFi; PE2..PE5 control WBO1/2 NRST & BOOT0 recovery lines
 	engineConfiguration->is_enabled_spi_4 = false;
@@ -178,11 +180,13 @@ void setBoardDefaultConfiguration() {
 	engineConfiguration->mapCamDetectionAnglePosition = 50.0f;
 
 	// Primary Analog & Thermistor Inputs for SV650 K7
-	engineConfiguration->map.sensor.hwChannel = EFI_ADC_0;   // AV1 (PA0): Front Cylinder IAP/MAP #1
-	engineConfiguration->tps1_1AdcChannel = EFI_ADC_1;       // AV2 (PA1): Primary TPS
-	engineConfiguration->tps2_1AdcChannel = EFI_ADC_3;       // AV4 (PA3): Secondary TPS (STPS)
-	engineConfiguration->clt.adcChannel = EFI_ADC_11;        // AT1 (PC1): Engine Coolant Temp (ECT)
-	engineConfiguration->iat.adcChannel = EFI_ADC_12;        // AT2 (PC2): Intake Air Temp (IAT)
+	engineConfiguration->map.sensor.hwChannel = EFI_ADC_0;   // AV1 (PA0, J2-5): Front Cylinder IAP/MAP #1
+	engineConfiguration->baroSensor.hwChannel = EFI_ADC_2;   // AV3 (PA2, J2-6): External GM 12614970 / Delphi PS10150 1-Bar Baro Sensor
+	engineConfiguration->baroSensor.type = MT_GM_1_BAR;      // 10-105 kPa across 0.0-5.0 V (init_map.cpp:62-63)
+	engineConfiguration->tps1_1AdcChannel = EFI_ADC_1;       // AV2 (PA1, J2-3): Primary TPS
+	engineConfiguration->tps2_1AdcChannel = EFI_ADC_3;       // AV4 (PA3, J2-4): Secondary TPS (STPS)
+	engineConfiguration->clt.adcChannel = EFI_ADC_11;        // AT1 (PC1, J2-1): Engine Coolant Temp (ECT)
+	engineConfiguration->iat.adcChannel = EFI_ADC_12;        // AT2 (PC2, J2-2): Intake Air Temp (IAT)
 
 	// Auxiliary Low-Side Outputs for SV650 K7
 	engineConfiguration->fuelPumpPin = Gpio::C6;             // AUX_LS1: Fuel Pump Relay (Pin X)
